@@ -1,8 +1,7 @@
-# Sets the minimum version of CMake required to build the native
-# library. You should either keep the default value or only pass a
-# value of 3.4.0 or lower.
+cmake_minimum_required(VERSION 3.10)
 
-cmake_minimum_required(VERSION 3.4.1)
+# 16 KB page size support
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size=16384")
 
 add_definitions(-DUSE_CMAKE -DK2PDFOPT_KINDLEPDFVIEWER)
 
@@ -50,8 +49,6 @@ add_library( willus
              src/main/cpp/willus/wpdf.c
              src/main/cpp/willus/wsys.c
              src/main/cpp/willus/wzfile.c
-             # src/main/cpp/willus/bmpdjvu.c # DJVU
-             # src/main/cpp/willus/bmpmupdf.c src/main/cpp/willus/wmupdf.c # MUPDF
 )
 
 add_library( k2pdfopt

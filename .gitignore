@@ -1,3 +1,9 @@
 .externalNativeBuild
 local.properties
 .gradle
+.idea/
+.kiro/
+.cxx/
+build/
+*/build/
+*/.cxx/
