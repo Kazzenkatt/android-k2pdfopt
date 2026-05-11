@@ -26,6 +26,8 @@ add_library( willus
              src/main/cpp/willus/mem.c
              src/main/cpp/willus/ocr.c
              src/main/cpp/willus/ocrgocr.c
+             src/main/cpp/willus/ocrwords.c
+             src/main/cpp/willus/pdffonts.c
              src/main/cpp/willus/pdfwrite.c
              src/main/cpp/willus/point2d.c
              src/main/cpp/willus/render.c
@@ -39,6 +41,7 @@ add_library( willus
              src/main/cpp/willus/win.c
              src/main/cpp/willus/winbmp.c
              src/main/cpp/willus/wincomdlg.c
+             src/main/cpp/willus/wininet.c
              src/main/cpp/willus/winmbox.c
              src/main/cpp/willus/winshell.c
              src/main/cpp/willus/winshellwapi.c
@@ -47,6 +50,8 @@ add_library( willus
              src/main/cpp/willus/wmupdf.c
              src/main/cpp/willus/wmupdfinfo.c
              src/main/cpp/willus/wpdf.c
+             src/main/cpp/willus/wpdfoutline.c
+             src/main/cpp/willus/wpdfutil.c
              src/main/cpp/willus/wsys.c
              src/main/cpp/willus/wzfile.c
 )

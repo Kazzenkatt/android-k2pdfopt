@@ -4,7 +4,7 @@
 **
 ** Part of willus.com general purpose C code library.
 **
-** Copyright (C) 2018  http://willus.com
+** Copyright (C) 2022  http://willus.com
 **
 ** This program is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU Affero General Public License as
@@ -214,14 +214,14 @@ static void showglobalinfo(fz_context *ctx, globals *glo,char *filename)
 	if (obj)
 	{
 		fz_write_printf(ctx, out, "Info object (%d %d R):\n", pdf_to_num(ctx, obj), pdf_to_gen(ctx, obj));
-		pdf_print_obj(ctx, out, pdf_resolve_indirect(ctx, obj), 1);
+		pdf_print_obj(ctx, out, pdf_resolve_indirect(ctx, obj), 1,1);
 	}
 
 	obj = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Encrypt));
 	if (obj)
 	{
 		fz_write_printf(ctx, out, "\nEncryption object (%d %d R):\n", pdf_to_num(ctx, obj), pdf_to_gen(ctx, obj));
-		pdf_print_obj(ctx, out, pdf_resolve_indirect(ctx, obj), 1);
+		pdf_print_obj(ctx, out, pdf_resolve_indirect(ctx, obj), 1,1);
 	}
 
 	fz_write_printf(ctx, out, "\nPages: %d\n\n", glo->pagecount);
@@ -232,21 +232,23 @@ static void showglobalinfo(fz_context *ctx, globals *glo,char *filename)
 	obj = pdf_dict_gets(ctx,pdf_trailer(ctx,doc), "Info");
 	if (obj)
 	    {
+        size_t nn;
         int n;
         char *buf;
         pdf_obj *robj;
 
         robj=pdf_resolve_indirect(ctx,obj);
-        n=pdf_sprint_obj(ctx,NULL,0,robj,1);
+        pdf_sprint_obj(ctx,NULL,0,&nn,robj,1,1);
+        n=nn;
         buf=malloc(n+2);
         if (buf==NULL)
             {
             fz_write_printf(ctx,out,"Info object (%d %d R):\n",pdf_to_num(ctx,obj),pdf_to_gen(ctx,obj));
-		    pdf_print_obj(ctx,out,robj,1);
+		    pdf_print_obj(ctx,out,robj,1,1);
             }
         else
             {
-            pdf_sprint_obj(ctx,buf,n+2,robj,1);
+            pdf_sprint_obj(ctx,buf,n+2,&nn,robj,1,1);
             display_pdf_field(ctx,out,buf,"Title","TITLE");
             display_pdf_field(ctx,out,buf,"CreationDate","CREATED");
             display_pdf_field(ctx,out,buf,"ModDate","LAST MODIFIED");
@@ -275,7 +277,7 @@ static void showglobalinfo(fz_context *ctx, globals *glo,char *filename)
 	if (obj)
         {
 		fz_write_printf(ctx,out, "\nEncryption object (%d %d R):\n", pdf_to_num(ctx,obj), pdf_to_gen(ctx,obj));
-		pdf_print_obj(ctx,out, pdf_resolve_indirect(ctx,obj), 1);
+		pdf_print_obj(ctx,out, pdf_resolve_indirect(ctx,obj), 1,1);
         }
     }
 
@@ -396,7 +398,7 @@ gatherdimensions(fz_context *ctx, globals *glo, int page, pdf_obj *pageref, pdf_
 	if (j < glo->dims)
 		return;
 
-	glo->dim = fz_resize_array(ctx, glo->dim, glo->dims+1, sizeof(struct info));
+	glo->dim = fz_realloc_array(ctx, glo->dim, glo->dims+1, struct info);
 	glo->dims++;
 
 	glo->dim[glo->dims - 1].page = page;
@@ -441,7 +443,7 @@ gatherfonts(fz_context *ctx, globals *glo, int page, pdf_obj *pageref, pdf_obj *
 		if (k < glo->fonts)
 			continue;
 
-		glo->font = fz_resize_array(ctx, glo->font, glo->fonts+1, sizeof(struct info));
+		glo->font = fz_realloc_array(ctx, glo->font, glo->fonts+1, struct info);
 		glo->fonts++;
 
 		glo->font[glo->fonts - 1].page = page;
@@ -510,7 +512,7 @@ gatherimages(fz_context *ctx, globals *glo, int page, pdf_obj *pageref, pdf_obj 
 		if (k < glo->images)
 			continue;
 
-		glo->image = fz_resize_array(ctx, glo->image, glo->images+1, sizeof(struct info));
+		glo->image = fz_realloc_array(ctx, glo->image, glo->images+1, struct info);
 		glo->images++;
 
 		glo->image[glo->images - 1].page = page;
@@ -568,7 +570,7 @@ gatherforms(fz_context *ctx, globals *glo, int page, pdf_obj *pageref, pdf_obj *
 		if (k < glo->forms)
 			continue;
 
-		glo->form = fz_resize_array(ctx, glo->form, glo->forms+1, sizeof(struct info));
+		glo->form = fz_realloc_array(ctx, glo->form, glo->forms+1, struct info);
 		glo->forms++;
 
 		glo->form[glo->forms - 1].page = page;
@@ -613,7 +615,7 @@ gatherpsobjs(fz_context *ctx, globals *glo, int page, pdf_obj *pageref, pdf_obj 
 		if (k < glo->psobjs)
 			continue;
 
-		glo->psobj = fz_resize_array(ctx, glo->psobj, glo->psobjs+1, sizeof(struct info));
+		glo->psobj = fz_realloc_array(ctx, glo->psobj, glo->psobjs+1, struct info);
 		glo->psobjs++;
 
 		glo->psobj[glo->psobjs - 1].page = page;
@@ -656,7 +658,7 @@ gathershadings(fz_context *ctx, globals *glo, int page, pdf_obj *pageref, pdf_ob
 		if (k < glo->shadings)
 			continue;
 
-		glo->shading = fz_resize_array(ctx, glo->shading, glo->shadings+1, sizeof(struct info));
+		glo->shading = fz_realloc_array(ctx, glo->shading, glo->shadings+1, struct info);
 		glo->shadings++;
 
 		glo->shading[glo->shadings - 1].page = page;
@@ -724,7 +726,7 @@ gatherpatterns(fz_context *ctx, globals *glo, int page, pdf_obj *pageref, pdf_ob
 		if (k < glo->patterns)
 			continue;
 
-		glo->pattern = fz_resize_array(ctx, glo->pattern, glo->patterns+1, sizeof(struct info));
+		glo->pattern = fz_realloc_array(ctx, glo->pattern, glo->patterns+1, struct info);
 		glo->patterns++;
 
 		glo->pattern[glo->patterns - 1].page = page;
@@ -1180,15 +1182,71 @@ static void pdfinfo_info(fz_context *ctx, fz_output *out, char *filename, char *
 ** pagelist[] terminates with a negative number (or can be NULL for all pages).
 ** buf = char buffer to put info in.
 */
+double wmupdfinfo_get_max_bitmap_size_sqpix(char *filename,int pagenum)
+
+    {
+	char *password = "";
+	fz_context *ctx;
+    double maxsqpix;
+
+    ctx = fz_new_context(NULL, NULL, FZ_STORE_UNLIMITED);
+    if (!ctx)
+        {
+        fprintf(stderr, "cannot initialise context\n");
+        exit(1);
+        }
+    maxsqpix=0.;
+    fz_try(ctx)
+	    {
+        int i;
+        static globals _glo = { 0 };
+        globals *glo;
+        int pagelist[2];
+
+        glo=&_glo;
+        glo->ctx = ctx;
+        glo->doc = pdf_open_document(ctx,filename);
+        if (pdf_needs_password(ctx,glo->doc))
+            if (!pdf_authenticate_password(ctx, glo->doc, password))
+                fz_throw(glo->ctx, FZ_ERROR_GENERIC, "cannot authenticate password: %s", filename);
+        glo->pagecount=pdf_count_pages(ctx,glo->doc);
+        pagelist[0]=pagenum;
+        pagelist[1]=-1;
+        gather_all_info(ctx,glo,filename,ALL,pagelist);
+		for (i = 0; i < glo->images; i++)
+            {
+            double sqpix;
+
+            if (glo->image[i].page!=pagenum)
+                continue;
+            sqpix= (double)pdf_to_int(ctx, glo->image[i].u.image.width)
+				   * (double)pdf_to_int(ctx, glo->image[i].u.image.height);
+            if (sqpix > maxsqpix)
+                maxsqpix=sqpix;
+            }
+        closexref(ctx,glo);
+	    }
+	fz_catch(ctx)
+	    {
+		return(-1.);
+	    }
+	fz_drop_context(ctx);
+    return(maxsqpix);
+    }
+
+
+/*
+** filename = input PDF file
+** pagelist[] terminates with a negative number (or can be NULL for all pages).
+** buf = char buffer to put info in.
+*/
 void wmupdfinfo_get(char *filename,int *pagelist,char **buf)
 
     {
 	char *password = "";
 	int show = ALL;
-	int sizebytes;
 	fz_output *out = NULL;
 	fz_context *ctx;
-    FILE *fout;
     char tempname[MAXFILENAMELEN];
 
     /*
@@ -1239,28 +1297,8 @@ void wmupdfinfo_get(char *filename,int *pagelist,char **buf)
     fz_close_output(ctx,out);
 	fz_drop_output(ctx,out);
 	fz_drop_context(ctx);
-    /* fclose(fout); */
-    fout=fopen(tempname,"rb");
-    if (fout==NULL)
-        return;
-    fseek(fout,0L,2);
-    sizebytes=ftell(fout);
-    if (sizebytes<=0)
-        {
-        fclose(fout);
-        return;
-        }
-    (*buf)=malloc(sizebytes+1);
-    if ((*buf)==NULL)
-        {
-        fclose(fout);
-        return;
-        }
-    fseek(fout,0L,0);
-    fread((*buf),1,sizebytes,fout);
-    fclose(fout);
+    wfile_read_ascii_to_buf(buf,tempname);
     remove(tempname);
-    (*buf)[sizebytes]='\0';
     }
 
 

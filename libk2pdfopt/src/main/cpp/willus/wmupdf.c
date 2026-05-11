@@ -4,7 +4,7 @@
 **
 ** Part of willus.com general purpose C code library.
 **
-** Copyright (C) 2018  http://willus.com
+** Copyright (C) 2023  http://willus.com
 **
 ** This program is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU Affero General Public License as
@@ -189,8 +189,6 @@ int wmupdf_remake_pdf(char *infile,char *outfile,WPDFPAGEINFO *pageinfo,int use_
     pdf_write_opts.do_compress=1;
     pdf_write_opts.do_linear=0;
     pdf_write_opts.do_garbage=1; /* 2 and 3 don't work for this. */
-    pdf_write_opts.continue_on_error=0;
-    pdf_write_opts.errors=NULL;
     write_failed=0;
     wpdfpageinfo_sort(pageinfo);
     xref=NULL;
@@ -1735,7 +1733,14 @@ static WPDFOUTLINE *wpdfoutline_convert_from_fitz_outline(fz_outline *fzoutline)
     */
     if (fzoutline->uri==NULL)
         x->srcpage=-1;
-    else if (fzoutline->uri[0]=='#')
+    /*
+    ** Update 24 Dec 2023--correctly parse page num out of uri string.
+    ** MuPDF change this from "#<pagenum>..." to "#page=<pagenum>..." somewhere
+    ** between v1.17 and v1.21.
+    */
+    else if (!strnicmp(fzoutline->uri,"#page=",6))
+        x->srcpage=atoi(&fzoutline->uri[6])-1;
+    else if (fzoutline->uri[0]=='#' && fzoutline->uri[1]>='0' && fzoutline->uri[1]<='9')
         x->srcpage=atoi(&fzoutline->uri[1])-1;
     else if (atoi(fzoutline->uri)>0)
         x->srcpage=atoi(fzoutline->uri)-1;
@@ -1890,5 +1895,77 @@ static pdf_obj *pdf_new_string_utf8(fz_context *ctx,char *string)
     willus_mem_free((double **)&utfbuf,funcname);
     return(pdfobj);
     }
-    
+
+
+/*
+** Text in PDF (optional crop box) to UTF-8 STRBUF.
+** Crop box dims in inches
+** If left<0, crop box ignored
+*/
+void wmupdf_utf8_strbuf_from_pdf(STRBUF *sbuf,char *pdffile0,int pageno0,
+                                 double left,double top,double right, double bottom)
+
+    {
+    static WTEXTCHARS *wtcs=NULL;
+    static WTEXTCHARS _wtcs;
+    static WTEXTCHARS *wtcsbb,_wtcsbb;
+    static int pageno=-1;
+    static char pdffile[512];
+
+    if (wtcs==NULL)
+        {
+        wtcs=&_wtcs;
+        wtextchars_init(wtcs);
+        pdffile[0]='\0';
+        }
+    if (pageno0!=pageno || strcmp(pdffile,pdffile0))
+        {
+        wtextchars_clear(wtcs);
+        pageno=pageno0;
+        xstrncpy(pdffile,pdffile0,511);
+        wtextchars_fill_from_page(wtcs,pdffile,pageno,"");
+        /* Sort by position */
+        wtextchars_sort_vertically_by_position(wtcs,0);
+        }
+    /* Get only chars within bounding box */
+    if (left>=0.)
+        {
+        wtcsbb=&_wtcsbb;
+        wtextchars_init(wtcsbb);
+        wtextchars_get_chars_inside(wtcs,wtcsbb,left*72.,top*72.,right*72.,bottom*72.);
+/*
+{
+int i;
+aprintf(ANSI_MAGENTA "BEFORE VERT SORT\n");
+for (i=0;i<wtcsbb->n;i++)
+{
+WTEXTCHAR *wc;
+wc=&wtcsbb->wtextchar[i];
+printf("'%c' (%04X) xp=%8.5f, yp=%8.5f, x1=%8.5f, y1=%8.5f, x2=%8.5f, y2=%8.5f\n",
+        wc->ucs,wc->ucs,wc->xp,wc->yp,wc->x1,wc->y1,wc->x2,wc->y2);
+}
+}
+*/
+        wtextchars_sort_vertically_by_position(wtcsbb,0);
+/*
+{
+int i;
+aprintf(ANSI_YELLOW "AFTER VERT SORT\n");
+for (i=0;i<wtcsbb->n;i++)
+{
+WTEXTCHAR *wc;
+wc=&wtcsbb->wtextchar[i];
+printf("'%c' (%04X) xp=%8.5f, yp=%8.5f, x1=%8.5f, y1=%8.5f, x2=%8.5f, y2=%8.5f\n",
+        wc->ucs,wc->ucs,wc->xp,wc->yp,wc->x1,wc->y1,wc->x2,wc->y2);
+}
+}
+*/
+        }
+    else
+        wtcsbb=wtcs;
+    strbuf_clear(sbuf);
+    wtextchars_to_strbuf_formatted(wtcsbb,sbuf);
+    if (wtcsbb!=wtcs)
+        wtextchars_free(wtcsbb);
+    }
 #endif /* HAVE_MUPDF_LIB */

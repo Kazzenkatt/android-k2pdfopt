@@ -298,7 +298,7 @@ Java_com_github_axet_k2pdfopt_K2PdfOpt_load(JNIEnv *env, jobject thiz, jobject b
     K2PDFOPT_SETTINGS *k2settings = &k2pdfopt->k2settings;
 
     /* Must be called once per conversion to init margins / devsize / output size */
-    k2pdfopt_settings_new_source_document_init(k2settings);
+    k2pdfopt_settings_new_source_document_init(k2settings,NULL);
 
     masterinfo_free(masterinfo, k2settings);
     masterinfo_init(masterinfo, k2settings);
@@ -431,9 +431,13 @@ Java_com_github_axet_k2pdfopt_K2PdfOpt_load(JNIEnv *env, jobject thiz, jobject b
     int l = dstmar_pixels[0];
     int t = dstmar_pixels[1];
 
-    while ((bp = masterinfo_get_next_output_page(masterinfo, k2settings, flush_output, &page->bmp,
+    /* v2.55: must queue pages before popping them */
+    while (masterinfo_queue_next_output_page(masterinfo, k2settings, flush_output) > 0);
+
+    int srcpageno=0;
+    while ((bp = masterinfo_pop_next_queued_page(masterinfo, k2settings, &page->bmp,
                                                  &page->dpi,
-                                                 &size_reduction, ocrwords)) > 0) {
+                                                 &size_reduction, ocrwords, &srcpageno)) > 0) {
 
         int bpe = bps + bp;
         PAGERECTS *rects = new PAGERECTS;

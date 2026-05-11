@@ -5,7 +5,7 @@
 **
 ** Part of willus.com general purpose C code library.
 **
-** Copyright (C) 2018  http://willus.com
+** Copyright (C) 2023  http://willus.com
 **
 ** This program is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU Affero General Public License as
@@ -75,7 +75,11 @@ int rmdir(const char *);
 #endif
 #if (defined(WIN32) || defined(MSDOS))
 #define SLASH   '\\'
+#ifdef WIN32
+#define ALLFILES    "*"
+#else
 #define ALLFILES    "*.*"
+#endif
 #define COLON
 #else
 #define SLASH   '/'
@@ -130,6 +134,9 @@ void *__crt0_glob_function(void)
     {
     return(NULL);
     }
+#endif
+#ifdef WIN32
+static double ularge_to_double(ULARGE_INTEGER *x);
 #endif
 
 
@@ -1046,7 +1053,7 @@ double wfile_freespace(char *volume,double *totalspace)
 
     {
 #ifdef WIN32
-    long    spc,bps,fc,tc;
+    // long    spc,bps,fc,tc;
     char    vol[256];
 
     if (volume[1]==':' || volume[1]=='\0')
@@ -1063,12 +1070,18 @@ double wfile_freespace(char *volume,double *totalspace)
         if (strlen(vol)>0 && vol[strlen(vol)-1]!='\\')
             strcat(vol,"\\");
         }
-    GetDiskFreeSpace(vol,(void *)&spc,(void *)&bps,(void *)&fc,(void *)&tc);
+    {
+    ULARGE_INTEGER freebytestocaller,totalbytes,freebytes;
+
+    GetDiskFreeSpaceEx(vol,&freebytestocaller,&totalbytes,&freebytes);
+//    GetDiskFreeSpace(vol,(void *)&spc,(void *)&bps,(void *)&fc,(void *)&tc);
     /* fc = free clusters, spc = sectors/cluster, bps = bytes/sector */
     if (totalspace!=NULL)
-        (*totalspace) = (double)tc*(double)spc*bps;
-    return((double)fc*(double)spc*bps);
-#else
+        (*totalspace) = ularge_to_double(&totalbytes);
+//        (*totalspace) = (double)tc*(double)spc*bps;
+    return(ularge_to_double(&freebytestocaller));
+    }
+#else /* !WIN32 */
     static char tempname[MAXFILENAMELEN];
     static char cmd[MAXFILENAMELEN];
     double v[4],freebytes,totbytes;
@@ -1118,7 +1131,7 @@ double wfile_freespace(char *volume,double *totalspace)
     if (totalspace!=NULL)
         (*totalspace) = totbytes;
     return(freebytes);
-#endif
+#endif /* WIN32 */
     }
 
 
@@ -2121,6 +2134,7 @@ void wfile_abstmpnam(char *filename)
 
     {
     strcpy(filename,wfile_tempname(NULL,NULL));
+    wfile_make_absolute(filename);
     }
 
 
@@ -3484,3 +3498,140 @@ int wfile_rename_utf8(char *filename1,char *filename2)
     return(rename(filename1,filename2));
 #endif
     }
+
+
+/*
+** O/S independent way to convert linefeeds correctly
+*/
+int wfile_read_ascii_to_buf(char **buf,char *filename)
+
+    {
+    char tempname[MAXFILENAMELEN];
+    char lbuf[256];
+    FILE *out,*f;
+    int sizebytes;
+
+    f=fopen(filename,"r");
+    if (f==NULL)
+        return(-1);
+    wfile_abstmpnam(tempname);
+    out=fopen(tempname,"w");
+    if (out==NULL)
+        {
+        fclose(f);
+        return(-2);
+        }
+    while (fgets(lbuf,255,f)!=NULL)
+        fprintf(out,"%s",lbuf);
+    if (fclose(f)!=0 || fclose(out)!=0)
+        return(-3);
+    f=fopen(tempname,"rb");
+    if (f==NULL)
+        return(-4);
+    fseek(f,0L,2);
+    sizebytes=ftell(f);
+    if (sizebytes<=0)
+        {
+        fclose(f);
+        return(-5);
+        }
+    (*buf)=malloc(sizebytes+1);
+    if ((*buf)==NULL)
+        {
+        fclose(f);
+        return(-6);
+        }
+    fseek(f,0L,0);
+    if (fread((*buf),1,sizebytes,f)<sizebytes || fclose(f)!=0)
+        return(-7);
+    remove(tempname);
+    (*buf)[sizebytes]='\0';
+    return(0);
+    }
+
+
+int wfile_files_match(char *file1,char *file2)
+
+    {
+    FILE *f1,*f2;
+    int c1,c2;
+
+    f1=fopen(file1,"rb");
+    if (f1==NULL)
+        return(0);
+    f2=fopen(file2,"rb");
+    if (f2==NULL)
+        {
+        fclose(f1);
+        return(0);
+        }
+    while ((c1=fgetc(f1))!=EOF)
+        {
+        c2=fgetc(f2);
+        if (c1!=c2)
+            {
+            fclose(f2);
+            fclose(f1);
+            return(0);
+            }
+        }
+    c2=fgetc(f2);
+    fclose(f2);
+    fclose(f1);
+    return(c1==c2);
+    }
+
+
+int wfile_file_contains(char *filename,unsigned char *buf,int n)
+
+    {
+    int i,c;
+    FILE *f;
+    size_t i0;
+
+    f=fopen(filename,"rb");
+    if (f==NULL)
+        return(0);
+    for (i=i0=0;(c=fgetc(f))!=EOF;)
+        {
+        if (c==buf[i])
+            {
+            if (i==n-1)
+                {
+                fclose(f);
+                return(1);
+                }
+            if (i==0)
+                i0=ftell(f);
+            i++;
+            continue;
+            }
+        if (i==0)
+            continue;
+        fseek(f,i0+1,0);
+        i=0;
+        }
+    fclose(f);
+    return(0);
+    }
+
+
+int wfile_filename_is_wild(char *filename)
+
+    {
+    int i;
+
+    for (i=0;filename[i]!='\0';i++)
+        if (filename[i]=='*' || filename[i]=='?')
+            return(1);
+    return(0);
+    }
+
+
+#ifdef WIN32
+static double ularge_to_double(ULARGE_INTEGER *x)
+
+    {
+    return((double)x->u.HighPart*4294967296.+(double)x->u.LowPart);
+    }
+#endif
